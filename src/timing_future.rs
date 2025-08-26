@@ -1,35 +1,45 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 use pin_project::pin_project;
 
 pub struct TimingResult<T> {
+    #[allow(dead_code)]
     pub output: T,
     pub elapsed_time: Duration,
-    pub poll: usize
+    pub poll: usize,
 }
 
 #[pin_project]
-pub struct TimingFuture<Fut> where Fut: Future {
+pub struct TimingFuture<Fut>
+where
+    Fut: Future,
+{
     #[pin]
     inner: Fut,
     elapsed: Option<Instant>,
-    poll: usize
+    poll: usize,
 }
 
-impl<Fut> TimingFuture<Fut> where Fut: Future {
+impl<Fut> TimingFuture<Fut>
+where
+    Fut: Future,
+{
     pub fn new(fut: Fut) -> Self {
         TimingFuture {
             inner: fut,
             elapsed: None,
-            poll: 0
+            poll: 0,
         }
     }
 }
 
-impl<Fut> Future for TimingFuture<Fut> where Fut: Future {
+impl<Fut> Future for TimingFuture<Fut>
+where
+    Fut: Future,
+{
     type Output = TimingResult<Fut::Output>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -40,13 +50,11 @@ impl<Fut> Future for TimingFuture<Fut> where Fut: Future {
 
         match this.inner.poll(cx) {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(t) => {
-                Poll::Ready(TimingResult {
-                    output: t,
-                    elapsed_time: time.elapsed(),
-                    poll: *this.poll
-                })
-            }
+            Poll::Ready(t) => Poll::Ready(TimingResult {
+                output: t,
+                elapsed_time: time.elapsed(),
+                poll: *this.poll,
+            }),
         }
     }
 }

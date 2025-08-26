@@ -17,6 +17,7 @@ A benchmark library.
 - [x] Custom formatting
 - [ ] Intuitive numerical units
 - [x] Support custom memory allocator
+- [ ] Output formatting
 
 ### Examples
 ```

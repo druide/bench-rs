@@ -1,23 +1,11 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub use bencher::Bencher;
 pub use bencher_macro::*;
-pub use track_allocator::TrackAllocator;
 
-mod timing_future;
 mod bencher;
+mod timing_future;
 mod track_allocator;
-
-#[macro_export]
-macro_rules! new_allocator {
-    ($allocator:expr) => {
-        TrackAllocator {
-            allocator: $allocator,
-            counter: std::sync::atomic::AtomicUsize::new(0),
-            peak: std::sync::atomic::AtomicUsize::new(0)
-        };
-    };
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Stats {
@@ -28,12 +16,17 @@ pub struct Stats {
     pub mem_average: usize,
     pub mem_min: usize,
     pub mem_max: usize,
+
+    pub allocations: usize,
+    pub leaked_bytes: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Step {
     time: u128,
-    mem: usize
+    mem: usize,
+    allocations: usize,
+    leaked_bytes: usize,
 }
 
 impl From<&Vec<Step>> for Stats {
@@ -46,36 +39,27 @@ impl From<&Vec<Step>> for Stats {
         let mem = steps.iter().map(|step| step.mem).collect::<Vec<usize>>();
         let mem_iter = mem.iter();
 
+        let a = steps
+            .iter()
+            .map(|step| step.allocations)
+            .collect::<Vec<usize>>();
+        let allocations_iter = a.iter();
+
+        let l_bytes = steps
+            .iter()
+            .map(|step| step.leaked_bytes)
+            .collect::<Vec<usize>>();
+        let leaked_bytes_iter = l_bytes.iter();
+
         Stats {
             times_average: (times_iter.clone().sum::<u128>() / count as u128) as usize,
-            times_min: times_iter.clone().cloned().min().unwrap_or_default() as usize,
-            times_max: times_iter.clone().cloned().max().unwrap_or_default() as usize,
+            times_min: times_iter.clone().copied().min().unwrap_or_default() as usize,
+            times_max: times_iter.clone().copied().max().unwrap_or_default() as usize,
             mem_average: mem_iter.clone().sum::<usize>() / count,
-            mem_min: mem_iter.clone().cloned().min().unwrap_or_default(),
-            mem_max: mem_iter.clone().cloned().max().unwrap_or_default()
+            mem_min: mem_iter.clone().copied().min().unwrap_or_default(),
+            mem_max: mem_iter.clone().copied().max().unwrap_or_default(),
+            allocations: allocations_iter.clone().copied().max().unwrap_or_default(),
+            leaked_bytes: leaked_bytes_iter.clone().copied().max().unwrap_or_default(),
         }
     }
-}
-// Format a number with thousands separators
-fn fmt_thousands_sep(mut n: usize, sep: char) -> String {
-    use std::fmt::Write;
-    let mut output = String::new();
-    let mut trailing = false;
-    for &pow in &[9, 6, 3, 0] {
-        let base = 10_usize.pow(pow);
-        if pow == 0 || trailing || n / base != 0 {
-            if !trailing {
-                output.write_fmt(format_args!("{}", n / base)).unwrap();
-            } else {
-                output.write_fmt(format_args!("{:03}", n / base)).unwrap();
-            }
-            if pow != 0 {
-                output.push(sep);
-            }
-            trailing = true;
-        }
-        n %= base;
-    }
-
-    output
 }
