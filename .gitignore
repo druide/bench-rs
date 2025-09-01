@@ -2,3 +2,4 @@
 /bencher-macro/target
 *.lock
 .idea
+.vscode

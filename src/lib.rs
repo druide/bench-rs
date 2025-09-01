@@ -1,7 +1,10 @@
-use serde::{Deserialize, Serialize};
-
-pub use bencher::Bencher;
+#[cfg(not(feature = "track-allocator"))]
+pub use bencher::Bencher as BencherTrait;
 pub use bencher_macro::*;
+use serde::{Deserialize, Serialize};
+pub use stats_alloc;
+#[cfg(feature = "track-allocator")]
+pub use track_allocator::{Bencher, GLOBAL_ALLOC};
 
 mod bencher;
 mod timing_future;
@@ -21,7 +24,7 @@ pub struct Stats {
     pub leaked_bytes: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Step {
     time: u128,
     mem: usize,
@@ -29,8 +32,14 @@ pub struct Step {
     leaked_bytes: usize,
 }
 
-impl From<&Vec<Step>> for Stats {
-    fn from(steps: &Vec<Step>) -> Self {
+impl From<&[Step]> for Stats {
+    fn from(steps: &[Step]) -> Self {
+        let mut steps = steps.to_vec();
+
+        let min_step = steps.iter().map(|step| step.time).min().unwrap_or(0);
+        if min_step != 0 {
+            steps.retain(|step| step.time * 1000 / min_step < 1500);
+        }
         let count = steps.len();
 
         let times = steps.iter().map(|step| step.time).collect::<Vec<u128>>();
